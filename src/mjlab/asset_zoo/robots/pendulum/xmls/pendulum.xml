@@ -1,0 +1,59 @@
+<mujoco model="inverted_pendulum">
+  <compiler angle="radian" coordinate="local"/>
+
+  <option gravity="0 0 -9.81" timestep="0.001" iterations="50" solver="Newton"/>
+
+  <default>
+    <geom type="cylinder" rgba="0.2 0.2 1 1" contype="1" conaffinity="1"/>
+  </default>
+
+  <statistic center="0 0 0.1" extent="0.8"/>
+
+  <!-- <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="-130" elevation="-20"/>
+  </visual>
+
+  <asset>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
+      markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset> -->
+
+  <worldbody>
+    <body name="base" pos="0 0 1.5">
+      <!-- You can visualize the base if needed -->
+      <geom type="box" size="0.2 0.1 0.05" rgba="1 0 0 1" contype="0" conaffinity="0"/>
+
+      <!-- Pendulum link -->
+      <body name="pendulum_link" pos="0 0 0">
+        <inertial pos="0 0 -0.5" mass="1.0" diaginertia="0.01 0.01 0.0001"/>
+        <joint name="pivot" type="hinge" pos="0 0 0" axis="0 1 0" damping="0.1" range="-3.14159265 3.14159265" limited="true"/>
+        <geom type="cylinder" size="0.03 0.5" pos="0 0 -0.5" rgba="1 0.647 0 1" contype="0" conaffinity="0"/>
+        <body name="tip" pos="0 0 -1.0">
+          <inertial pos="0 0 0" mass="0.1" diaginertia="0.001 0.001 0.001"/>
+          <geom type="sphere" size="0.05" rgba="0 1 0 1" contype="0" conaffinity="0"/>
+        </body>
+      </body>
+    </body>    
+  </worldbody>
+
+  <actuator>
+    <!-- <position name="pivot" joint="pivot" kp="30" kv="1"/> -->
+    <!-- <motor name="pivot" joint="pivot"/> -->
+  </actuator>
+
+  <sensor>
+    <jointpos joint="pivot" name="joint_position"/>
+    <jointvel joint="pivot" name="joint_velocity"/>
+    <!-- <jointaccel joint="pivot" name="joint_acceleration"/> -->
+    <jointactuatorfrc joint="pivot" name="joint_torque"/>
+    <framepos objtype="body" objname="tip" name="tip_position"/>
+    <framelinvel objtype="body" objname="tip" name="tip_velocity"/>
+  </sensor>
+
+  <keyframe>
+    <key name="initial" qpos="0.0" qvel="0.0"/>
+  </keyframe>
+</mujoco>
