@@ -65,7 +65,7 @@ class CommandsCfg:
     ),
   )
 # position tracking command
-@dataclass
+# @dataclass
 # class CommandsCfg:
 #   motion: mdp.PositionCommandCfg = term(
 #     mdp.PositionCommandCfg,

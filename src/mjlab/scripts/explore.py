@@ -21,6 +21,7 @@ from mjlab.utils.os import get_wandb_checkpoint_path
 from mjlab.utils.torch import configure_torch_backends
 from mjlab.viewer import NativeMujocoViewer, ViserViewer
 from mjlab.viewer.base import EnvProtocol
+from mjlab.dynamics.exploration import TrajectoryBatch, explore
 
 ViewerChoice = Literal["auto", "native", "viser"]
 ResolvedViewer = Literal["native", "viser"]
@@ -33,17 +34,12 @@ class ExploreConfig:
   checkpoint_file: str | None = None
   motion_file: str | None = None
   num_envs: int | None = None
-  device: str | None = None
-  
-def _resolve_viewer_choice(choice: ViewerChoice) -> ResolvedViewer:
-  """Resolve viewer choice, defaulting to web viewer when no display is present."""
-  if choice != "auto":
-    return cast(ResolvedViewer, choice)
+  device: str = "cuda:0"
+  video: bool = False
+  video_length: int = 200
+  video_interval: int = 2000
+  save_file: str | None = None
 
-  has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
-  resolved: ResolvedViewer = "native" if has_display else "viser"
-  print(f"[INFO]: Auto-selected viewer: {resolved} (display detected: {has_display})")
-  return resolved
   
 def run_exploration(task: str, cfg: ExploreConfig):
   configure_torch_backends()
@@ -58,17 +54,22 @@ def run_exploration(task: str, cfg: ExploreConfig):
   DUMMY_MODE = cfg.agent in {"zero", "random"}
   TRAINED_MODE = cfg.agent == "trained"
   PRE_DEFINED_MODE = cfg.agent == "pre-defined"
+  if(PRE_DEFINED_MODE):
+    raise NotImplementedError("Pre-defined controller mode is not implemented yet.")
   
   if TRAINED_MODE:
     agent_cfg = cast(
-        RslRlOnPolicyRunnerCfg, load_cfg_from_registry(task, "ctrl_cfg_entry_point")
+        RslRlOnPolicyRunnerCfg, load_cfg_from_registry(task, "rl_cfg_entry_point")
     )
   # TODO: implement the ControllerCfg
-  elif PRE_DEFINED_MODE: 
-    agent_cfg = cast(
-        ControllerCfg, load_cfg_from_registry(task, "ctrl_cfg_entry_point")
-    )
+  # elif PRE_DEFINED_MODE: 
+  #   agent_cfg = cast(
+  #       ControllerCfg, load_cfg_from_registry(task, "ctrl_cfg_entry_point")
+  #   )
 
+  ###################################################
+  ### specify motion file path for tracking if needed
+  ###################################################
   if isinstance(env_cfg, TrackingEnvCfg):
     if DUMMY_MODE:
       if not cfg.registry_name:
@@ -108,6 +109,9 @@ def run_exploration(task: str, cfg: ExploreConfig):
             raise RuntimeError("No motion artifact found in the run.")
           env_cfg.commands.motion.motion_file = str(Path(art.download()) / "motion.npz")
 
+  ###########################################
+  ### specify path for loading trained policy
+  ###########################################
   log_dir: Optional[Path] = None
   resume_path: Optional[Path] = None
   if TRAINED_MODE:
@@ -126,22 +130,16 @@ def run_exploration(task: str, cfg: ExploreConfig):
     print(f"[INFO]: Loading checkpoint: {resume_path}")
     log_dir = resume_path.parent
 
+  ##############
+  ### env setup
+  ##############
   if cfg.num_envs is not None:
     env_cfg.scene.num_envs = cfg.num_envs
-  if cfg.video_height is not None:
-    env_cfg.viewer.height = cfg.video_height
-  if cfg.video_width is not None:
-    env_cfg.viewer.width = cfg.video_width
 
-  render_mode = "rgb_array" if (TRAINED_MODE and cfg.video) else None
-  if cfg.video and DUMMY_MODE:
-    print(
-      "[WARN] Video recording with dummy agents is disabled (no checkpoint/log_dir)."
-    )
-  env = gym.make(task, cfg=env_cfg, device=device, render_mode=render_mode)
+  env = gym.make(task, cfg=env_cfg, device=device, render_mode="rgb_array" if cfg.video else None)
 
   if (TRAINED_MODE or PRE_DEFINED_MODE) and cfg.video:
-    print("[INFO] Recording videos during play")
+    print("[INFO] Recording videos during exploration")
     env = gym.wrappers.RecordVideo(
       env,
       video_folder=str(Path(log_dir) / "videos" / "play"),  # type: ignore[arg-type]
@@ -181,19 +179,17 @@ def run_exploration(task: str, cfg: ExploreConfig):
     runner.load(str(resume_path), map_location=device)
     policy = runner.get_inference_policy(device=device)
   # TODO: implement the controller for
-  elif PRE_DEFINED_MODE:
-    pass
+  # elif PRE_DEFINED_MODE:
+  #   pass
   
-  resolved_viewer = _resolve_viewer_choice(cfg.viewer)
-  
-  if resolved_viewer == "native":
-    NativeMujocoViewer(cast(EnvProtocol, env), policy).run()
-  elif resolved_viewer == "viser":
-    ViserViewer(cast(EnvProtocol, env), policy).run()
-  else:
-    raise RuntimeError(f"Unsupported viewer backend: {resolved_viewer}")
+  runner.add_git_repo_to_log(__file__)
+  policy = runner.get_inference_policy(device=device)
+
+  traj_batch = explore(policy, env)
+
 
   env.close()
+
 
 
 def main():
