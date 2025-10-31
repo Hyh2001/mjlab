@@ -182,7 +182,7 @@ class TrajectoryBatch:
         torch.save(payload, filepath)
 
     @classmethod
-    def load(cls, filepath: str, device: Optional[Union[str, torch.device]] = "cuda:0") -> "TrajectoryBatch":
+    def load(cls, filepath: str, device: Optional[Union[str, torch.device]] = "cpu") -> "TrajectoryBatch":
         """Load a TrajectoryBatch saved with save(). Moves tensors to `device` if provided."""
         payload = torch.load(filepath, map_location="cpu")
         def _move(x):
@@ -241,5 +241,5 @@ def explore(policy: Any, env: RslRlVecEnvWrapper, )-> TrajectoryBatch:
         obs = torch.cat([obs, obs_t["policy"].unsqueeze(1)], dim=1)
         t += 1
         print(f"Exploration step: {t}/{max_steps}", end="\r")
-    breakpoint()
+    # breakpoint()
     return TrajectoryBatch(obs=obs, actions=actions, dones=dones)

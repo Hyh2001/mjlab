@@ -38,7 +38,7 @@ class ExploreConfig:
   video: bool = False
   video_length: int = 200
   video_interval: int = 2000
-  save_file: str | None = None
+  save_trajectory_file: str | None = None
 
   
 def run_exploration(task: str, cfg: ExploreConfig):
@@ -186,7 +186,7 @@ def run_exploration(task: str, cfg: ExploreConfig):
   policy = runner.get_inference_policy(device=device)
 
   traj_batch = explore(policy, env)
-
+  traj_batch.save(cfg.save_trajectory_file) if cfg.save_trajectory_file else None
 
   env.close()
 
