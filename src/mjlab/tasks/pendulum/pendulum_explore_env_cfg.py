@@ -27,18 +27,34 @@ from mjlab.tasks.pendulum import mdp
 from mjlab.tasks.pendulum.pendulum_env_cfg import (
     SCENE_CFG, SIM_CFG, VIEWER_CONFIG, ActionCfg,
     CommandsCfg, ObservationCfg, RewardCfg, TerminationCfg, 
-    EventCfg, SimulationCfg
+    SimulationCfg
 )
 
-# apply random push torque to the joint
-def random_push_cart(env, env_ids, force_range=(-1, 1)):
-  n = len(env_ids)
-  random_torques = (
-    torch.rand(n, device=env.device) *
-    (force_range[1] - force_range[0]) +
-    force_range[0]
+@dataclass
+class EventCfg:
+  reset_robot_joints: EventTerm = term(
+    EventTerm,
+    func=mdp.reset_joints_by_offset,
+    mode="reset",
+    params={
+      "asset_cfg": SceneEntityCfg("robot"),
+      "position_range": (-0.1, 0.1),
+      "velocity_range": (0.0, 0.0),
+    },
   )
-  env.sim.data.qfrc_applied[env_ids, 0] = random_torques
+  body_mass_randomization: EventTerm = term(
+    EventTerm,
+    mode="startup", 
+    func=mdp.randomize_field,
+    params={ 
+      "asset_cfg": SceneEntityCfg("robot", body_names=["tip"]),
+      "operation": "add", 
+      "field": "body_mass", 
+      "ranges": ( -0.02, 0.02),    
+    }, 
+  )
+    
+
 
 @dataclass
 class PendulumExploreEnvCfg(ManagerBasedRlEnvCfg):
