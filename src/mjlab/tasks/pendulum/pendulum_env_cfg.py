@@ -147,7 +147,7 @@ class RewardCfg:
 class EventCfg:
   reset_robot_joints: EventTerm = term(
     EventTerm,
-    func=mdp.reset_joints_by_scale,
+    func=mdp.reset_joints_by_offset,
     mode="reset",
     params={
       "asset_cfg": SceneEntityCfg("robot"),
