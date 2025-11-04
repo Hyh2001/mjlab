@@ -203,7 +203,7 @@ class TrajectoryBatch:
             infos=payload.get("infos"),
         )
     
-def explore(policy: Any, env: RslRlVecEnvWrapper, )-> TrajectoryBatch:
+def explore(policy: Any, env: RslRlVecEnvWrapper)-> TrajectoryBatch:
     """
     Explore the environment using the given policy and collect a trajectory batch.
 
