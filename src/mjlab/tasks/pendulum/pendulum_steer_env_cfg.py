@@ -1,4 +1,4 @@
-"""Pendulum task environment configuration for exploration."""
+"""Pendulum task environment configuration for steering."""
 
 import math
 from dataclasses import dataclass, field
@@ -23,6 +23,7 @@ from mjlab.rl import RslRlOnPolicyRunnerCfg
 # from mjlab.envs import mdp
 from mjlab.terrains import TerrainImporterCfg
 from mjlab.tasks.pendulum import mdp
+from mjlab.dynamics.steering import RslRlVecEnvWrapper, ReferenceGenerator
 
 from mjlab.tasks.pendulum.pendulum_env_cfg import (
     SCENE_CFG, SIM_CFG, VIEWER_CONFIG, ActionCfg,
@@ -30,6 +31,49 @@ from mjlab.tasks.pendulum.pendulum_env_cfg import (
     SimulationCfg
 )
 
+from dynamics_training.controllers.MPPI import MPPI, MPPIConfig
+from dynamics_training.dynamics_model.pendulum.pendulum_model import PendulumModel, PendulumModelConfig
+
+class PendulumReferenceGenerator(ReferenceGenerator):
+    def __init__(self, env: RslRlVecEnvWrapper, horizon: int):
+        super().__init__(env, horizon)
+        self.dt = self.env.unwrapped.step_dt
+        
+    def generate_reference(self) -> torch.Tensor:
+        # forward velocity command: cos wave
+        t = torch.arange(0, self.horizon * self.dt, self.dt, device=self.env.device).unsqueeze(0)  # (1, horizon)
+        vel_command = torch.cos(t).repeat(self.env.num_envs, 1)  # (num_envs, horizon)
+        return vel_command.unsqueeze(-1)  # (num_envs, horizon, 1)
+    
+mppi_cfg = MPPIConfig(
+    horizon = 20,
+    dt = 0.02,
+    num_samples = 500,
+    act_dim = 1,
+    obs_dim = 5 # obs_dim * his_length
+)
+input_horizon = 5
+output_horizon = 1
+save_path = "/home/yuhao/Packages/Online_Dynamics_Finetuning/dynamics_training/test/models/test_model_perfect_data_good.npz"
+model_cfg = PendulumModelConfig(
+    input_dim = 1 * input_horizon + 1 * output_horizon,
+    output_dim = 1 * output_horizon,
+    hidden_sizes=[64, 256, 64],
+    activation="relu",
+    load_path=save_path
+)
+
+model = PendulumModel(model_cfg)
+mppi = MPPI(model, mppi_cfg)
+
+@dataclass 
+class SteerEnvCfg():
+    mppi: MPPI = field(default_factory=lambda: mppi)
+    model: PendulumModel = field(default_factory=lambda: model)
+    reference_generator: PendulumReferenceGenerator = field(default_factory=lambda: PendulumReferenceGenerator)
+    command_indices: list[int] = field(default_factory=lambda: [2])  # index of velocity command in observation
+    key: int = 42
+    
 @dataclass
 class EventCfg:
   reset_robot_joints: EventTerm = term(
@@ -50,11 +94,9 @@ class EventCfg:
       "asset_cfg": SceneEntityCfg("robot", body_names=["tip"]),
       "operation": "abs", 
       "field": "body_mass", 
-      "ranges": (0.1, 1.0),    
+      "ranges": (0.5, 0.5), # a fixed value    
     }, 
   )
-    
-
 
 @dataclass
 class PendulumExploreEnvCfg(ManagerBasedRlEnvCfg):
